@@ -44,6 +44,34 @@ node scripts/autopilot-multi.mjs --apply --draft-mr on-loop-start
 
 See [`commands/autopilot-multi.md`](commands/autopilot-multi.md) or `node scripts/autopilot-multi.mjs --help` for the full flag reference.
 
+### Claude Code 2.1.x Adoption Matrix
+
+| Feature | CC version | Status | Issue |
+|---|---|---|---|
+| `experimental.monitors` plugin manifest | 2.1.105 | ✓ Adopted (ecosystem-health, convergence-monitor) | #427 |
+| `hookSpecificOutput.additionalContext` | 2.1.x | ✓ Adopted (3 PostToolUse hooks) | #428 |
+| `continueOnBlock: true` (prompt-hooks only) | 2.1.139 | ⏸ Migration deferred — see #447 | #428 |
+| `terminalSequence` JSON output (OSC 9 + OSC 777) | 2.1.141 | ✓ Adopted (on-stop hook, cross-platform) | #429 |
+| `disable-model-invocation: true` on commands | 2.1.x | ✓ Adopted (12 USER-ONLY commands) | #430 |
+| `worktree.bgIsolation: "none"` | 2.1.143 | ✓ Adopted (autopilot-multi opt-in + hard-error guard) | #431 |
+| Skill description ≤ 1024 chars + trigger phrases | 2.1.118 | ✓ Verified (37/37 compliant; 22 quality-improved) | #432 |
+| `$schema` validation (schemastore.org) | n/a | ✓ Adopted (both manifests + CI gate) | #433 |
+| `model:` frontmatter routing | 2.1.x | ✓ Adopted (36 SKILL.md: opus/sonnet/haiku/inherit) | #434 |
+| `Skill(name:*)` permission wildcards | 2.1.119 | ✓ Adopted (5 worker agents; 6 reviewers explicit) | #435 |
+
+Audit umbrella: #426. Follow-ups: #447 (continueOnBlock migration spike), #448 (autopilot sentinel refactor).
+
+### Clawpatch Borrow Cluster (v3.6+, deep-2)
+
+Six infrastructure capabilities shipped as an opportunistic cluster. Full session narrative in CLAUDE.md (or AGENTS.md on Codex CLI) under "Recent sessions".
+
+- **Worker pool** (#415) — `scripts/lib/wave-executor/pool.mjs`; cursor-based parallel wave execution. Session Config: `worker-pool.{enabled,max-parallel,drain-timeout-ms}`. Disabled by default, fully backward-compatible.
+- **Language mappers Phase 1** (#416) — `scripts/lib/language-mappers/{index,typescript,markdown}.mjs`; AST-based symbol extraction via `@babel/parser` (TypeScript) and `remark` (Markdown). Phase 2 (Swift + Python) deferred.
+- **Schema-per-agent output** (#417) — `scripts/lib/agent-output-schema.mjs` + AJV 2020 + 4 `agents/schemas/*.schema.json`; machine-readable output contracts on `code-implementer`, `db-specialist`, `test-writer`, `ui-developer`.
+- **Sandbox tier** (#418) — `scripts/lib/validate/tier-inference.mjs`; 4-tier vocabulary (`read-only` / `repo-write` / `network-allowed` / `dangerous`) declared in `sandbox-tier:` frontmatter on all 11 agents; validated at distribution time.
+- **Discovery triage state** (#419) — `scripts/lib/discovery/triage-state.mjs`; sha256-16 fingerprint per finding, 5-state enum, last-writer-wins JSONL persistence; wired into `/discovery` Phase 5.0.
+- **`--since` flag for scoped discovery** (#420) — `changedFilesSince(ref)` in `scripts/lib/discovery-helpers.mjs`; limits `/discovery` and `/test` probes to files changed since a git ref. Vault-staleness and harness-audit probes remain whole-repo.
+
 ## Install
 
 > **Prerequisite:** Node.js 20 or later. Check with `node --version`. v3.x runs as ES modules and requires a real Node runtime, no Bash shim. [Install Node.js](https://nodejs.org/).
@@ -224,6 +252,24 @@ Cursor has two event-coverage limitations vs. Claude Code and Codex CLI:
 2. **Post-hoc scope enforcement.** The Cursor-equivalent `afterFileEdit` hook fires *after* the edit. The destructive-command guard (`beforeShellExecution`) is fully equivalent to Claude Code's PreToolUse Bash gate. Scope enforcement is best-effort warn-only on Cursor.
 
 Active Cursor hooks: 2 events (`afterFileEdit`, `beforeShellExecution`) routed to 2 handlers (`enforce-scope.mjs`, `enforce-commands.mjs`).
+
+### Cross-Platform Notifications
+
+Session-stop emits an OSC desktop notification via the `terminalSequence` hook output field (CC 2.1.141+). Coverage:
+
+| Terminal | OSC 9 | OSC 777 |
+|---|---|---|
+| iTerm2 (macOS) | ✓ | — |
+| Windows Terminal | ✓ | — |
+| WezTerm | ✓ | — |
+| ConEmu | ✓ | — |
+| Ghostty | — | ✓ |
+| urxvt | — | ✓ |
+| Warp | — | ✓ |
+| Kitty | OSC 99 (TODO) | — |
+| Apple Terminal | titles only | — |
+
+Both OSC 9 and OSC 777 are emitted together — unsupported terminals silently ignore. Replaces the previous macOS-only `osascript` user-level hook (still works as fallback for terminals not supporting either).
 
 ## Components
 
