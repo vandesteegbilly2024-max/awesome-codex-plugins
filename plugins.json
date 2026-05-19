@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "name": "awesome-codex-plugins",
   "version": "1.0.0",
-  "last_updated": "2026-05-18",
-  "total": 80,
+  "last_updated": "2026-05-19",
+  "total": 81,
   "categories": [
     "Development & Workflow",
     "Tools & Integrations"
@@ -388,6 +388,16 @@
       "category": "Development & Workflow",
       "source": "awesome-codex-plugins",
       "install_url": "https://raw.githubusercontent.com/xxsang/writers-loop/HEAD/.codex-plugin/plugin.json"
+    },
+    {
+      "name": "Zagrosi Forge",
+      "url": "https://github.com/zagrosi-code/zagrosi-forge",
+      "owner": "zagrosi-code",
+      "repo": "zagrosi-forge",
+      "description": "Decompose broad project briefs into researched plans and implement sectioned work with TDD, quality gates, and traceability.",
+      "category": "Development & Workflow",
+      "source": "awesome-codex-plugins",
+      "install_url": "https://raw.githubusercontent.com/zagrosi-code/zagrosi-forge/HEAD/.codex-plugin/plugin.json"
     },
     {
       "name": "Agent Message Queue",

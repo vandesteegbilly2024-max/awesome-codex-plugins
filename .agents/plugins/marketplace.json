@@ -557,6 +557,21 @@
       "description": "Structured AI writing workflow for planning, critique, revision, translation, style distillation, and opt-in local preference learning."
     },
     {
+      "name": "zagrosi-forge",
+      "displayName": "Zagrosi Forge",
+      "source": {
+        "source": "local",
+        "path": "./plugins/zagrosi-code/zagrosi-forge"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Development & Workflow",
+      "description": "Decompose broad project briefs into researched plans and implement sectioned work with TDD, quality gates, and traceability.",
+      "icon": "./plugins/zagrosi-code/zagrosi-forge/assets/icon.svg"
+    },
+    {
       "name": "amq-cli",
       "displayName": "Agent Message Queue",
       "source": {

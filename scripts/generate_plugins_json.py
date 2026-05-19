@@ -188,7 +188,7 @@ def collect_selected_paths(
         if candidate in all_names:
             selected.add(optional_name)
 
-    for key in ("skills", "mcpServers", "apps", "app", "appConfig", "hooks"):
+    for key in ("skills", "scripts", "mcpServers", "apps", "app", "appConfig", "hooks"):
         value = manifest.get(key)
         if isinstance(value, str):
             add_recursive_selection(selected, all_names, plugin_root, value)
