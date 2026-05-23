@@ -25,11 +25,12 @@ Before running Step 0, print this plan to the user verbatim:
 > 1. Pre-checks: confirm this is a dbt project, the `dbt` CLI is installed, and the `entropy-data` CLI is connected.
 > 2. Resolve the data product by id or URL (`entropy-data dataproducts get`).
 > 3. Fetch each selected output port's data contract (`entropy-data datacontracts get`) and save it next to the SQL it governs, under `models/output_ports/v<N>/`.
-> 4. Translate the ODCS schema into dbt models under `models/output_ports/v1/` (column list, types, tests).
-> 5. Implement the dbt model bodies: declare input ports as dbt sources, cache each upstream contract under `models/input_ports/<provider-op-id>.odcs.yaml` as a trust snapshot, and write the `select` from input ports to output columns (with confirmation; complex joins left as TODOs).
-> 6. Stamp the data product on Entropy Data with the `dataProductBuilder` customProperty so the platform knows it is managed by this builder.
-> 7. Hand off to `entropy-data-sync` to add any missing publishing artifacts (ODPS, OpenLineage, GitHub Actions).
-> 8. Summarize what was generated and the open TODOs.
+> 4. Validate the contract against the target platform's conventions (e.g. UPPERCASE identifiers on Snowflake). If fixable bugs are found, offer to patch and publish the corrected contract back to Entropy Data.
+> 5. Translate the ODCS schema into dbt models under `models/output_ports/v1/` (column list, types, tests).
+> 6. Implement the dbt model bodies: declare input ports as dbt sources, cache each upstream contract under `models/input_ports/<provider-op-id>.odcs.yaml` as a trust snapshot, and write the `select` from input ports to output columns (with confirmation; complex joins left as TODOs).
+> 7. Stamp the data product on Entropy Data with the `dataProductBuilder` customProperty so the platform knows it is managed by this builder.
+> 8. Hand off to `entropy-data-sync` to add any missing publishing artifacts (ODPS, OpenLineage, GitHub Actions).
+> 9. Summarize what was generated and the open TODOs.
 
 Then proceed.
 
@@ -65,7 +66,30 @@ The fields you need from `CONTRACT`:
 - `servers` (so the output port's server config is consistent with the contract)
 - `terms` and `quality` rules — useful context but not required to materialize the model
 
+### Step 2.5 — Validate the contract against the target platform
+
+Scan the contract for convention bugs and offer to fix them in one pass, with the patched contract published back to Entropy Data. Dispatched off `servers[].type`. Server types not listed below are skipped silently — add a section when extending support.
+
+**Snowflake** — for every property in every schema covered by a `type: snowflake` server:
+
+- **Mixed-case `name`.** Snowflake folds unquoted identifiers to UPPERCASE; `datacontract-cli` (≥ 0.11.5) quotes `name` verbatim. Any lowercase letter in `name` makes the soda query miss the stored UPPERCASE column. Normalize `name` to UPPERCASE.
+- **Redundant `physicalName`.** When `physicalName` equals the UPPERCASE form of `name`, drop it.
+
+If nothing is flagged, continue silently to Step 3. Otherwise list every fix (one bullet per property × issue) and ask:
+
+> Found N convention issue(s) for `<server-type>` on contract `<CONTRACT_ID>`:
+>   - property `<old-name>`: rename `name` → `<NEW-NAME>`
+>   - property `<NEW-NAME>`: drop redundant `physicalName: <value>`
+>
+> Apply, save to `models/output_ports/v<N>/<contract-file>.odcs.yaml`, and publish back to Entropy Data? [Y/n]
+
+On `Y`: patch the local file with `yq -i`, keep `version` unchanged (convention fix, not a schema change), `entropy-data datacontracts put <CONTRACT_ID> --file <path>`, re-read `CONTRACT`, continue. Stop on non-2xx.
+
+On `n`: warn that `datacontract test` will fail on the un-normalized properties and continue. Don't re-ask this run.
+
 ### Step 3 — Translate ODCS schema to dbt artifacts
+
+**Output column identifier rule (applies to this step and Step 4).** Use the contract property's `name` directly as the SQL alias and the `_models.yml` `columns: - name:` entry. Don't substitute `physicalName` — `datacontract test` queries by `name`. Per-warehouse case conventions are enforced by Step 2.5; this step trusts the post-validation `name`.
 
 For each contract:
 
@@ -141,7 +165,12 @@ For each output port table:
    The `sources[].name` combines `<provider-data-product-id>_<provider-output-port-id>` so it stays unique across agreements (two agreements with the same provider data product but different output ports do not collide). Each `tables:` entry comes from the provider contract's `models:` block — a contract can declare multiple tables, and each one becomes a row here. The `meta.data_contract` reference goes on the source element (one contract per output port), not on each table, and points at the local snapshot written in sub-step 3.
 
    One pair of files (`*.odcs.yaml` + `*.source.yaml`) per agreement. Do not merge multiple agreements into a single file — each access grant should be independently visible in `git log` and easy to remove when revoked. If either file already exists for the same `<provider-output-port-id>`, surface the diff and ask before overwriting.
-2. **Match input columns to output columns.** Build a column-by-column map: for each output column in the contract, find the input column with the same name (or an obvious synonym, e.g. `customer_id` ↔ `account_id` only if the input contract's `description` makes it explicit). Don't guess — if no clear match, leave that column as a `null as <col>` placeholder with a `-- TODO: derive from ...` comment.
+2. **Match input columns to output columns**, in this order. Stop at the first signal that yields exactly one candidate.
+   1. **Same semantic concept** — both columns declare a `type: semantics` entry in `authoritativeDefinitions` whose URL ends in the same path segment after normalization (lowercase, strip non-alphanumeric — so `…/processedTimestamp` matches `…/processed_timestamp`). Scheme, host, and org-id prefix differences don't disqualify.
+   2. **Same name** (case-insensitive).
+   3. **Token superset** — tokenize both names on `_` and case boundaries; the shorter side's tokens are all contained in the longer side's. Covers patterns like `<X>_NAME` ⊃ `<x>`, `<DOMAIN>_<X>` ⊃ `<x>`, `<X>_TIMESTAMP` ⊃ `timestamp`. Generic single-token output names (`id`, `name`, `type`, `value`, `code`, `key`) need a second signal — require (1) or a description echo (the upstream column's description names the output concept) before treating as a hit.
+
+   If exactly one upstream column matches, project `cast(<input_col> as <warehouse_type>) as <output_name>`. If multiple match, write `cast(null as <type>) as <output_name>  -- TODO: candidates: <names>`. If none match, write `cast(null as <type>) as <output_name>  -- TODO: source <description>`.
 3. **Write the SQL body.**
    - **Single input source, columns match 1:1** → replace the TODO `from` with `from {{ source('<provider-data-product-id>_<provider-output-port-id>', '<table>') }}` (the first arg matches `sources[].name`, the second matches `tables[].name` — i.e. the contract's model key — from the source file written in step 4.1) and project each output column with `cast(<input_col> as <warehouse_type>) as <output_col>`.
    - **Multiple input sources** → leave the join logic as an inline TODO listing each candidate `{{ source(...) }}` reference and the join keys the user will need to confirm. Do not invent join predicates.
@@ -183,6 +212,7 @@ End with this two-part recap. Use the same `Status` enum the other skills use: `
 | Data product | already present | `<DATA_PRODUCT_ID>` — fetched from platform |
 | `dataProductBuilder` customProperty | … | "added — pushed to Entropy Data" / "already present" |
 | Output-port data contract `<CONTRACT_ID>` | … | written to `models/output_ports/v<N>/<contract_id>.odcs.yaml` |
+| Contract validation (`<server-type>`) | … | "passed" / "normalized & republished: `<property>` × N" / "issues found, user declined fix" / "skipped (no rules for `<server-type>`)" |
 | Input-port data contracts | … | `models/input_ports/<provider-output-port-id>.odcs.yaml` — `<N>` files written / refreshed (trust snapshots, one per active access agreement) / skipped |
 | Input port sources | … | `models/input_ports/<provider-output-port-id>.source.yaml` — `<N>` files written (one per active access agreement) / skipped |
 | Model `<table>.sql` | … | `models/output_ports/v1/<table>.sql` — "wired to `<source>`" / "join TODO" / "skipped per user" |

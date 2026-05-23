@@ -202,6 +202,10 @@ Current host-facing status:
 | `CodeBuddy` | Plugin skeleton and native `SKILL.md` manual install guide exist; release-level fresh host smoke is still pending |
 | `DeepSeek-TUI` | Native `SKILL.md` discovery supports manual Aegis skill install; release-level fresh host smoke is still pending |
 | `Trae` | Native `SKILL.md` discovery supports manual Aegis skill install; release-level fresh host smoke is still pending |
+| `Antigravity CLI` | Structural target added; release-level fresh host smoke is still pending |
+| `Antigravity IDE` | Structural target added; release-level fresh host smoke is still pending |
+| `Antigravity App` | Structural target added; release-level fresh host smoke is still pending |
+| `Gemini CLI` | Transitional compatibility surface retained while Antigravity support matures, including enterprise / paid-key caveats |
 
 Other hosts remain product targets, but are not yet current release-level verdicts.
 
@@ -366,8 +370,33 @@ Copy-Item -Recurse -Force "$env:USERPROFILE\.trae\aegis\skills\*" "$env:USERPROF
 
 Restart Trae, then ask it to describe its Aegis skills.
 
+### Antigravity CLI / IDE / App
+
+Google Antigravity is now the preferred Google host target for new Aegis work.
+Aegis tracks three structural surfaces:
+
+- `Antigravity CLI`
+- `Antigravity IDE`
+- `Antigravity App`
+
+Until Google's Antigravity plugin / skill install contract is verified for this
+repository, use the host's current Skills / plugin configuration UI or slash
+commands to expose Aegis skills from a local checkout, then run complete-install
+verification from the checkout root:
+
+```bash
+git clone https://github.com/GanyuanRan/Aegis.git ~/aegis
+cd ~/aegis
+python scripts/aegis-doctor.py --write-config --json
+```
+
+Treat Antigravity support as structural until the compatibility matrix records
+fresh host smoke evidence. For details, read
+[docs/README.antigravity.md](docs/README.antigravity.md).
+
 Full host guides:
 
+- [Antigravity](docs/README.antigravity.md)
 - [Claude Code](docs/README.claude-code.md)
 - [CodeBuddy](docs/README.codebuddy.md)
 - [Codex](docs/README.codex.md)
@@ -375,7 +404,12 @@ Full host guides:
 - [OpenCode](docs/README.opencode.md)
 - [Trae](docs/README.trae.md)
 
-The project still preserves the broader multi-host distribution skeleton inherited from `superpowers`, including Cursor and Gemini-related package surfaces. Those surfaces should not be interpreted as current fresh release-level closeout unless the compatibility matrix says so.
+The project still preserves the broader multi-host distribution skeleton inherited
+from `superpowers`, including Cursor and Gemini-related package surfaces.
+Gemini CLI is retained as a transitional compatibility surface while Antigravity
+support matures after Google's `2026-05-19` transition announcement toward
+Antigravity CLI and Antigravity 2.0; those surfaces should not be interpreted as
+current fresh release-level closeout unless the compatibility matrix says so.
 
 ## First Project Baseline
 
@@ -415,6 +449,10 @@ Automatic behavior:
   `SKILL.md` skill paths.
 - Trae discovers copied Aegis skill directories from its native `SKILL.md`
   skill paths.
+- Antigravity CLI, Antigravity IDE, and Antigravity App are structural target
+  surfaces; until their install / discovery contract is verified, use portable
+  skill requests and the current Antigravity Skills / plugin configuration
+  surface.
 - `using-aegis` tells the agent to check whether a task-specific skill applies before responding.
 - In day-to-day use, you do not need to manually name a skill for every request;
   explicit commands are the override path when you want a specific method.
@@ -434,6 +472,9 @@ Explicit use:
 - In CodeBuddy, ask it to load an Aegis skill such as `systematic-debugging`.
 - In DeepSeek-TUI, use the native skill command, for example: `/skill systematic-debugging`.
 - In Trae, ask it to load an Aegis skill such as `systematic-debugging`.
+- In Antigravity surfaces, use portable skill requests such as
+  `Use the Aegis systematic-debugging skill`, or Antigravity slash commands
+  when the current host exposes a verified equivalent.
 
 Long-task behavior:
 
@@ -604,7 +645,7 @@ We thank [Matt Pocock](https://github.com/mattpocock) and all contributors to [m
 |-------------|-------------|-----------------|
 | `communicating-concisely` | `/caveman` | Ultra-compressed communication mode with auto-clarity exception |
 | `establishing-project-context` | `/grill-with-docs` | CONTEXT.md shared language system, terminology tightening during brainstorming |
-| ADR creation gate | `/grill-with-docs` ADR discipline | Three-condition gate before creating architecture decision records |
+| `recording-architecture-decisions` | `/grill-with-docs` ADR discipline | ADR lifecycle plus baseline sync closure |
 | Feedback loop construction | `/diagnose` Phase 1 | Priority ladder for building automated bug reproduction loops |
 
 These ideas were re-implemented in Aegis format — shorter, multi-harness compatible, and integrated with the TLREF/DIVE/Reflection governance spine rather than copied verbatim.

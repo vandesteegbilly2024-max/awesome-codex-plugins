@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-3.6.0-blue.svg)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-5632%20passing-brightgreen.svg)](#development)
+[![Tests](https://img.shields.io/badge/tests-6620%20passing-brightgreen.svg)](#development)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-Plugin-blueviolet.svg)](https://docs.anthropic.com/en/docs/claude-code)
 [![Codex](https://img.shields.io/badge/Codex-Compatible-green.svg)](https://developers.openai.com/codex/)
 [![Cursor IDE](https://img.shields.io/badge/Cursor_IDE-Compatible-blue.svg)](https://cursor.com)
@@ -14,8 +14,8 @@ Turn ad-hoc Claude Code sessions into a repeatable loop with verification gates.
 - **37 skills** for the session lifecycle (start, plan, execute, close, evolve), discovery, vault sync, MCP authoring, debugging, brainstorming, and more
 - **17 slash commands** (`/session`, `/go`, `/close`, `/discovery`, `/plan`, `/evolve`, `/autopilot`, `/test`, …)
 - **11 typed sub-agents** (code-implementer, test-writer, security-reviewer, session-reviewer, qa-strategist, architect-reviewer, …)
-- **11 hook event handlers** enforcing scope, blocking destructive commands, capturing telemetry
-- **5812 vitest tests** passing on every commit, validate-plugin 94/94, typecheck 187 files OK, lint 0
+- **12 hook event handlers** enforcing scope, blocking destructive commands, capturing telemetry
+- **6620 vitest tests** passing on every commit, validate-plugin 94/94, typecheck 187 files OK, lint 0
 
 ## Lifecycle at a glance
 
@@ -156,6 +156,7 @@ Five deep sessions plus three intermediate fix-clusters. The v3.6.0 tag (2026-05
 - **Clawpatch Borrow Cluster** — six infrastructure capabilities shipped opportunistically: worker pool, language mappers (TypeScript + Markdown AST), schema-per-agent output contracts, sandbox-tier validation, discovery triage state, and `--since` flag for scoped discovery.
 - **Claude Code 2.1.x adoption** — `experimental.monitors`, `terminalSequence` (OSC 9 + OSC 777 cross-platform notifications), `disable-model-invocation` on USER-ONLY commands, `model:` frontmatter routing, `Skill(name:*)` permission wildcards.
 - **CI restoration** — fixed the 8-pipeline silent regression (lockfile conflict + `engine-strict=true` + `fetch-depth` for gitleaks).
+- **Learning & Memory System Modernization (Phase 1)** — vault consolidation, vault-mirror quality gate, cold-start abandonment fix, auto-dream dispatch ([epic #498](https://github.com/Kanevry/session-orchestrator/issues/498)).
 
 For the full version history see [CHANGELOG.md](CHANGELOG.md). For previous releases: v3.5.0 (2026-05-09), v3.4.0 (2026-05-08), v3.3.0 (2026-04-30).
 
@@ -194,7 +195,7 @@ flowchart LR
 
 **Agents (11).** `code-implementer`, `test-writer`, `ui-developer`, `db-specialist`, `security-reviewer`, `session-reviewer`, `docs-writer`, `architect-reviewer`, `qa-strategist`, `analyst`, `ux-evaluator`.
 
-**Hook event matchers / handlers (11 / 11).** `SessionStart` (banner + init), `PreToolUse/Edit|Write` (scope enforcement), `PreToolUse/Bash` (destructive-command guard + enforce-commands), `PostToolUse` (edit validation), `Stop` (session events), `SubagentStop` (telemetry), `PostToolUseFailure` (corrective context), `PostToolBatch` (wave signal + operator-steer), `SubagentStart` (telemetry), `CwdChanged` (cwd-change record). Plus the Clank Event Bus integration in `hooks/_lib/events.mjs`.
+**Hook event matchers / handlers (12 / 12).** `SessionStart` (banner + init), `PreToolUse/Edit|Write` (scope enforcement), `PreToolUse/Bash` (destructive-command guard + enforce-commands + templates-first), `PostToolUse` (edit validation), `Stop` (session events), `SubagentStop` (telemetry), `PostToolUseFailure` (corrective context), `PostToolBatch` (wave signal + operator-steer), `SubagentStart` (telemetry), `CwdChanged` (cwd-change record). Plus the Clank Event Bus integration in `hooks/_lib/events.mjs`.
 
 **Output Styles.** 3 (`session-report`, `wave-summary`, `finding-report`) for consistent reporting.
 
@@ -202,7 +203,7 @@ flowchart LR
 
 **Codex.** `.codex-plugin/plugin.json` (manifest), compatibility config, 3 agent role definitions, marketplace `composerIcon`.
 
-**Scripts.** Deterministic CLI tools (parse-config, run-quality-gate, validate-wave-scope, validate-plugin, token-audit, autopilot, autopilot-multi) plus shared lib (`scripts/lib/*.mjs`) plus a vitest suite of 5900+ tests.
+**Scripts.** Deterministic CLI tools (parse-config, run-quality-gate, validate-wave-scope, validate-plugin, token-audit, autopilot, autopilot-multi) plus migration helpers (`vault-consolidate.mjs` — vault folding [#499](https://github.com/Kanevry/session-orchestrator/issues/499); `migrate-vault-paths.mjs` — username-drift path repair [#499]; `migrate-cold-start-seed.mjs` — seeds welcome-banner markers in dormant repos [#507](https://github.com/Kanevry/session-orchestrator/issues/507)) plus shared lib (`scripts/lib/*.mjs`) plus a vitest suite of 6600+ tests.
 
 ### `/harness-audit` — Anthropic large-codebase rubric
 
@@ -233,7 +234,7 @@ Both [`maestro-orchestrate`](https://github.com/josstei/maestro-orchestrate) and
 |---|---|---|
 | Execution model | 5 typed waves (Discovery → Impl-Core → Impl-Polish → Quality → Finalization) with inter-wave quality gates and confidence-scored session-reviewer | 4-phase sequential model with parallel subagents |
 | Runtime coverage | Claude Code + Codex CLI + Cursor IDE (3) | Gemini CLI + Claude Code + Codex + Qwen Code (4) |
-| VCS integration | GitLab-first with GitHub mirror (auto-detected); 11 hook handlers + 16 commands wire to both | Runtime-agnostic; VCS work delegated to user |
+| VCS integration | GitLab-first with GitHub mirror (auto-detected); 12 hook handlers + 16 commands wire to both | Runtime-agnostic; VCS work delegated to user |
 | Cross-session learning | Confidence-scored entries in `.orchestrator/metrics/learnings.jsonl`; surfaced at session-start; opt-in `/evolve` review | Session archival to `docs/maestro/` without explicit learning extraction |
 | Specialist agents | 11 typed agents (code-implementer, security-reviewer, test-writer, qa-strategist, etc.) | 39 specialist agents across design/impl/review/debugging/security/compliance |
 
@@ -305,7 +306,7 @@ Clone, install, verify in three commands:
 ```bash
 git clone https://github.com/Kanevry/session-orchestrator.git && cd session-orchestrator
 npm install
-npm test        # vitest, 5632 tests
+npm test        # vitest, 6620 tests
 ```
 
 Additional scripts:
@@ -326,7 +327,10 @@ npx husky                  # one-time setup, wires git hooks via .husky/_/
 
 After that, `git commit` will:
 
-- **pre-commit**: run `lint-staged` (ESLint `--fix` on staged `*.mjs` files) and a gitleaks scan on staged files.
+- **pre-commit**: three stages, fail-fast:
+  1. **gitleaks** — scan staged changes for secrets.
+  2. **check-owner-leakage** (#494) — scan tracked files for P1–P7 owner-privacy leakage (personal paths, private host, private slugs, etc.). Reuses the same scanner CI runs in its `owner-leakage` validate job, closing the gap where `git add <leak> && git commit` slipped through 3× before.
+  3. **lint-staged** — ESLint `--fix` on staged `*.mjs` files.
 - **commit-msg**: validate Conventional Commits format via commitlint.
 
 To bypass (rare, emergencies only): `git commit --no-verify`. CI re-runs everything pre-commit ran, plus more.

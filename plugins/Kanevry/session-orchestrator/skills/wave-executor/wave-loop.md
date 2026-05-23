@@ -436,6 +436,43 @@ Log every non-`pass` result as an event to `.orchestrator/metrics/events.jsonl` 
    - After **Quality**: Full Gate quality checks per quality-gates (typecheck + test + lint, must all pass)
      (Full Gate is NEVER skipped regardless of cache state — this is the close-safety invariant.)
    - After **Finalization**: final git status check
+
+#### Auto-Fix Protocol (#521)
+
+When `verification-auto-fix.enabled: true`, the inter-wave Quality-Gate uses
+`runQualityGateWithRetry()` to dispatch up to `max-retries` (default 2)
+fixer-agent attempts before aborting.
+
+Per attempt:
+1. Run quality-gate (lint, typecheck, test in order).
+2. On failure, collect: failure output, corrective_context from
+   `.orchestrator/current-session.json`, changed files since last green SHA.
+3. Dispatch code-implementer fixer-subagent with the bundle.
+4. Re-run quality-gate.
+5. After max-retries → write `.orchestrator/metrics/verification-failures/<ts>.json`
+   diagnostics bundle and abort the wave.
+
+See `SKILL.md` § "Inter-Wave Quality-Gate (with Auto-Fix Loop — #521)" for
+the full invocation pattern.
+
+##### STATE.md Deviation — Auto-Fix Result
+
+After `runQualityGateWithRetry()` returns:
+
+- **If `result.ok === true`:** No deviation entry — quality gate passed, wave proceeds normally.
+- **If `result.attempts > 1` and `result.ok === true`:** Append ONE entry to `## Deviations` in `<state-dir>/STATE.md`:
+  ```
+  - [<ISO 8601 UTC>] Wave N auto-fix succeeded after N attempts (max-retries config: M). Failed gate(s): <gate-names>. Final pass on attempt N.
+  ```
+- **If `result.ok === false`:** Append ONE entry to `## Deviations` in `<state-dir>/STATE.md`:
+  ```
+  - [<ISO 8601 UTC>] Wave N auto-fix exhausted retries after N attempts (max-retries config: M). Failed gate: <gate-name>. Diagnostics bundle: <bundlePath>. Coordinator to review bundle and decide: fix manually, disable auto-fix and retry, or abort wave.
+  ```
+
+Use `appendDeviationOnDisk(repoRoot, isoTimestamp, message)` from `scripts/lib/state-md.mjs`.
+This is a **coordinator-only** write — fixer-subagents do not write STATE.md. The lock library
+ensures atomicity if multiple coordinator-level deviations land in the same wave.
+
 #### Auto-Commit Checkpoint (Optional, Opt-In)
 
 > Gate conditions — ALL of the following must be true for this step to run:
@@ -458,7 +495,9 @@ Agents: <done>/<total> done, <partial> partial, <failed> failed
 
 **Env-var bypass:** `SO_SKIP_AUTO_COMMIT=1` disables the commit for the current shell invocation regardless of config — useful for CI environments or when a human is reviewing changes mid-session.
 
-**STATE.md deviation logging:** after a successful commit, append one entry to `## Deviations` using `appendDeviation(stateContents, isoTimestamp, message)` from `scripts/lib/state-md.mjs`:
+**STATE.md deviation logging:** after a successful commit, append one entry to `## Deviations` using `appendDeviationOnDisk(repoRoot, isoTimestamp, message)` from `scripts/lib/state-md.mjs` (acquires the lock automatically):
+
+**Wrapper choice:** the canonical on-disk wrapper is `appendDeviationOnDisk(repoRoot, isoTimestamp, message)` — it acquires the STATE.md lock automatically before reading + writing. Callers in `.mjs` modules MUST prefer the on-disk wrapper; callers that pre-read STATE.md contents may use `appendDeviation(stateContents, isoTimestamp, message)` directly but MUST then route the write through `writeStateMd()`. Never use `readFileSync(STATE) → transform → writeFileSync(STATE)` — the race window allows STATE.md corruption under parallel waves (PSA-005).
 
 ```
 - [<ISO 8601 UTC>] Wave N auto-commit: <sha> (<Role>, Quality-Lite PASS, <N> files staged)
@@ -608,7 +647,7 @@ import { loadCatalog } from '$PLUGIN_ROOT/scripts/lib/persona-panel/catalog-load
 import { buildPersonaPrompt, validatePersonaOutput } from '$PLUGIN_ROOT/scripts/lib/persona-panel/persona-runner.mjs';
 import { consolidate } from '$PLUGIN_ROOT/scripts/lib/persona-panel/consolidator.mjs';
 import { writeJsonAtomic } from '$PLUGIN_ROOT/scripts/lib/io.mjs';
-import { appendDeviation } from '$PLUGIN_ROOT/scripts/lib/state-md.mjs';
+import { appendDeviationOnDisk } from '$PLUGIN_ROOT/scripts/lib/state-md.mjs';
 
 const cfg = $CONFIG['persona-gate-wave'];                        // already normalised by parseSessionConfig
 const catalog = await loadCatalog();                              // throws if .claude/personas/ missing or invalid
@@ -639,7 +678,7 @@ After all agents return, collect their outputs and validate each via `validatePe
 
 The sidecar carries `personas_invoked`, per-persona `outputs`, and the full `consolidation` block — operators consult it from the AskUserQuestion prompt before deciding `strict`-mode follow-up.
 
-**STATE.md deviation contract:** on `warn` (with at least one dissenting persona) or any `strict`-mode non-PROCEED verdict, append one timestamped entry to `## Deviations` via `appendDeviation(stateContents, iso, message)`:
+**STATE.md deviation contract:** on `warn` (with at least one dissenting persona) or any `strict`-mode non-PROCEED verdict, append one timestamped entry to `## Deviations` via `appendDeviationOnDisk(repoRoot, iso, message)` from `scripts/lib/state-md.mjs` (acquires the STATE.md lock):
 
 ```
 - [<ISO 8601 UTC>] Wave N persona-gate <warn|strict-proceed|strict-revise|strict-abort>: dissenting=[<persona-1>, <persona-2>], threshold=<cfg.threshold>, mode=<cfg.mode>. Sidecar: <relative-path>.

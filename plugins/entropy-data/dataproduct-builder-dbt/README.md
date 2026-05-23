@@ -26,30 +26,29 @@ For major coding agents, those can be installed as a plugin:
 
 ### Claude Code
 
-Inside your terminal:
+In your terminal:
 
 ```
-/plugin marketplace add https://github.com/entropy-data/dataproduct-builder-dbt
-/plugin install dataproduct-builder-dbt@dataproduct-builder-dbt
+claude plugin marketplace add https://github.com/entropy-data/dataproduct-builder-dbt
+claude plugin install dataproduct-builder-dbt@dataproduct-builder-dbt -s project
 ```
 
 ### OpenAI Codex
 
-Add the marketplace from the terminal:
+In your terminal:
 
 ```
 codex plugin marketplace add https://github.com/entropy-data/dataproduct-builder-dbt
+codex plugin add dataproduct-builder-dbt@dataproduct-builder-dbt
 ```
-
-Then open Codex, run `/plugins`, and pick `dataproduct-builder-dbt` from the directory.
 
 ### GitHub Copilot CLI
 
-Inside your terminal:
+In your terminal:
 
 ```
-/plugin marketplace add https://github.com/entropy-data/dataproduct-builder-dbt
-/plugin install dataproduct-builder-dbt@dataproduct-builder-dbt
+copilot plugin marketplace add https://github.com/entropy-data/dataproduct-builder-dbt
+copilot plugin install dataproduct-builder-dbt@dataproduct-builder-dbt
 ```
 ### Other agents (Cursor, Aider, etc.)
 

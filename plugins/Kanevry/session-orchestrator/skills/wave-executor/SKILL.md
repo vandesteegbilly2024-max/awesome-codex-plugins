@@ -2,8 +2,8 @@
 name: wave-executor
 user-invocable: false
 tags: [orchestration, execution, agents, waves]
-model: sonnet
-model-preference: sonnet
+model: opus
+model-preference: opus
 model-preference-codex: gpt-5.4-mini
 model-preference-cursor: claude-sonnet-4-6
 description: >
@@ -339,6 +339,55 @@ The diff JSON block (`{ new_errors, resolved_errors, baseline_count, current_cou
 **Configuration:** diff-mode is enabled by default once a baseline exists. To force full enforcement at any checkpoint, set `vault-sync.mode: full` in Session Config or pass `--mode full` explicitly.
 
 > **Cross-reference:** baseline file shape, diff output schema, and schema-hash mismatch handling are documented in `skills/vault-sync/SKILL.md` § Modes (#327).
+
+## Inter-Wave Quality-Gate (with Auto-Fix Loop — #521)
+
+After each wave, run the Quality-Gate. If `verification-auto-fix.enabled: true`
+in Session Config, the gate uses `runQualityGateWithRetry()` from
+`scripts/lib/quality-gate.mjs` which dispatches up to `max-retries` (default 2)
+fixer-agent dispatches on failure.
+
+### Invocation
+
+```javascript
+import { runQualityGateWithRetry } from '../../scripts/lib/quality-gate.mjs';
+
+const result = await runQualityGateWithRetry({
+  maxRetries: config['verification-auto-fix']?.['max-retries'] ?? 2,
+  repoRoot: process.cwd(),
+  dispatchFixer: async ({ failures, correctiveContext, changedFiles }) => {
+    // Coordinator dispatches a code-implementer fixer subagent here with:
+    //   - failures (gate + output)
+    //   - correctiveContext (from .orchestrator/current-session.json)
+    //   - changedFiles (since last green SHA)
+    // Subagent's task: fix the failing gate, never broaden scope.
+    await dispatchFixerSubagent({ failures, correctiveContext, changedFiles });
+  },
+});
+```
+
+### Decision flow
+
+- `result.ok === true` → Wave green, proceed to next wave or session-end.
+- `result.ok === false` → Hard abort.
+  - quality-gate.mjs writes `.orchestrator/metrics/verification-failures/<ts>.json` (diagnostics bundle — automatic, redacted per `redactDiagnosticsBundle()`).
+  - **Coordinator** (not fixer-subagent) appends a deviation entry to STATE.md via `appendDeviationOnDisk()` — see `wave-loop.md` § STATE.md Deviation — Auto-Fix Result.
+  - Wave execution is blocked; operator must manually fix or disable auto-fix.
+- `result.attempts > 1` → **Coordinator** logs a Deviation in STATE.md via `appendDeviationOnDisk()`: `auto-fix used N retries to clear Wave <wave>`.
+
+### Skip Conditions
+
+- `verification-auto-fix.enabled: false` (default) → fall back to single-shot
+  quality-gate, abort on first failure (current behavior preserved per PRD § 3
+  Gherkin negative path).
+- `verification-auto-fix.max-retries: 0` → equivalent to disabled.
+
+### Anti-pattern (BE-012 awareness)
+
+The fixer-agent prompt MUST include a reminder of `.claude/rules/test-quality.md`
+"test-the-mock" anti-pattern. A fix that makes tests green by mocking out the
+real failure is a regression vector. The fixer prompt should explicitly say:
+"Do NOT change test mocks to make tests pass. Fix the actual code defect."
 
 ## Frontmatter-Guard (#328)
 

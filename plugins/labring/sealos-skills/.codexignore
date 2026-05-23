@@ -1,8 +1,0 @@
-.git/
-.github/
-.sealos/
-node_modules/
-dist/
-out/
-.next/
-*.log

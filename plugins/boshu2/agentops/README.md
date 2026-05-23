@@ -6,20 +6,55 @@
 
 ### The SDLC control plane for agentic software development.
 
-From agent opinions to engineering verdicts.
+AgentOps sits on top of the coding harness you already use (Claude Code, Codex, Cursor, OpenCode) and adds the parts an engineering team would notice missing: a record of what was tried, gates between phases, and a corpus of learnings that survives the next session. State lives in `.agents/` next to your code, and you can mix Claude, Codex, or any model per phase.
 
-<!-- agentops:claim:AOP-CLAIM-README-FACTORY-CONTEXT -->
-**AgentOps is the SDLC control plane for coding agents.** It takes the software-engineering practices teams already understand - Agile/XP, BDD/Gherkin, DDD, hexagonal architecture, TDD, CI/CD, SRE, ADRs, provenance, and durable knowledge - and compiles them into dense, verifiable context for LLM agents under token scarcity.
+*This repo was built with AgentOps. As of 2026-05-04 its `.agents/` held ~1,842 learnings, ~186 patterns, ~80 planning rules, and ~3,867 cited decisions captured during development. Re-run anytime: `bash scripts/corpus-stats.sh`.*
 
-It is not a packet generator; packets are one artifact. AgentOps keeps the books for coding agents, then compiles that record into context for your software factory. It captures what agents tried, what worked, what failed, what was validated, and what should constrain the next run.
-
-*AgentOps is the shovel. Start digging.*
-
-> AgentOps is not a coding harness. The labs are building those, and they will keep getting better. AgentOps sits on top of whichever harness you already use — Claude Code, Codex, Cursor, OpenCode — and turns your business, codebase, and team practices into a context library those agents mix and match from. Mix and match Claude, Codex, or any model at every phase. Lives in `.agents/` in your repo. Runs on your hardware. Evolves with the models.
-
-*AgentOps was used to develop AgentOps. As of 2026-05-04, this repo's `.agents/` directory contained ~1,842 learnings, ~186 patterns, ~80 planning rules, and ~3,867 cited decisions captured by the system on itself across thousands of phase transitions. Re-run anytime: `bash scripts/corpus-stats.sh`. Independent 3-judge audit (2026-05-06) confirmed parity with Anthropic Managed Agents on rubric authoring, separate-context grading, and iterate-until-pass.*
+**New here? Start with [what AgentOps 3.0 is](docs/3.0.md) — the hookless-first CDLC north star.**
 
 </div>
+
+---
+
+## See It Work
+
+Most teams run coding agents as isolated chat sessions. Prior attempts, warnings, decisions, and fixes scatter across chats, commits, and human memory, so the same mistakes recur and nothing leaves a reviewable trail.
+
+AgentOps breaks intent into bounded slices, gives each slice a first failing test and a write scope, and makes every phase boundary a gate that records evidence.
+
+**A skill loads the corpus before writing a line of code:**
+
+```text
+> /research add rate limiting to /login
+
+[research] loading context from .agents/...
+[corpus]   3 prior auth decisions cited
+            - .agents/decisions/2026-04-12-session-tokens.md
+            - .agents/decisions/2026-03-08-rate-limit-policy.md
+            - .agents/decisions/2026-02-19-redis-as-state-store.md
+[corpus]   2 planning rules apply: rate-limit-jitter, redis-fallback-paths
+[corpus]   1 learning:  2026-03-08 — token bucket without jitter caused thundering-herd at 5/min
+[findings] middleware/auth.go owns /login; no rate limiting present
+[findings] internal/cache already wires Redis with a fallback path
+[plan]     token bucket, 5/min per IP, Redis-backed, jittered per 2026-03-08 learning
+[recorded] .agents/runs/2026-05-08-rate-limit/research.md
+```
+
+Skills run in the harness you already use (Claude Code, Codex, Cursor, OpenCode). The corpus is the differentiator: the agent starts loaded with prior decisions, planning rules, and learnings instead of starting cold. From here, `/implement` or `/rpi` carries the same context into the build phase.
+
+For a second opinion before shipping, `/council --mixed`:
+
+```text
+> /council --mixed validate this PR
+
+[council] evidence packet sealed -> 6 judges across Claude Code and Codex CLI
+[claude/judge-1] WARN - rate limiting missing on /login endpoint
+[claude/judge-2] PASS - Redis integration follows middleware pattern
+[codex/judge-1]  WARN - token bucket refill lacks jitter under burst
+[codex/judge-2]  PASS - backoff bounds match retry policy
+Consensus: WARN - fix /login rate limit and add refill jitter before shipping
+Recorded: .agents/council/<run-id>/verdict.md
+```
 
 ---
 
@@ -66,7 +101,7 @@ npx skills@latest add boshu2/agentops --cursor -g
 
 Restart your agent after install. Then type `/quickstart` in your agent chat.
 
-The `ao` CLI is optional but recommended — repo-native bookkeeping, retrieval, health checks, and terminal workflows.
+The `ao` CLI is optional but recommended: repo-native bookkeeping, retrieval, health checks, and terminal workflows.
 
 **macOS**
 
@@ -87,109 +122,9 @@ You can also install from [release binaries](https://github.com/boshu2/agentops/
 
 ---
 
-## See It Work
+## Why context is the lifecycle
 
-**The problem:** Coding agents are useful, but most teams still run them like isolated chat sessions. Every session starts cold. Prior attempts, warnings, decisions, and fixes scatter across chats, commits, and memory — so agents repeat mistakes, miss edge cases, and leave no reviewable proof trail.
-
-**What AgentOps does:** It compiles the engineering practices teams already trust — XP, BDD/Gherkin, DDD, TDD — into the workflow your agents actually run. Intent is broken into bounded slices, each slice gets a first failing test and a write scope, and every phase boundary is a gate that records evidence.
-
-**One loop: intent in, verified change out — across Claude and Codex**
-
-```text
-$ ao rpi "add rate limiting to /login"
-[research/claude]    found 3 prior auth changes in .agents/decisions/
-[plan/claude]        proposed: token bucket, 5/min per IP, Redis-backed
-[pre-mortem/codex]   WARN: Redis unreachable case unhandled
-[implement/codex]    wrote middleware/ratelimit.go, 2 tests
-[validate/claude]    go test ./... PASS, gate: WARN — missing jitter
-[recorded]           .agents/runs/2026-05-07-rate-limit/
-```
-
-Research, plan, pre-mortem, implement, validate — each boundary is a gate, not a suggestion, and each leaves a file-backed trace. Mix models per phase: Claude discovers, Codex implements, a fresh Claude validates, all in one loop with state preserved across boundaries.
-
-And when you want a second opinion before shipping: `/council --mixed`
-
-```text
-> /council --mixed validate this PR
-
-[council] evidence packet sealed -> 6 judges across Claude Code and Codex CLI
-[claude/judge-1] WARN - rate limiting missing on /login endpoint
-[claude/judge-2] PASS - Redis integration follows middleware pattern
-[codex/judge-1]  WARN - token bucket refill lacks jitter under burst
-[codex/judge-2]  PASS - backoff bounds match retry policy
-Consensus: WARN - fix /login rate limit and add refill jitter before shipping
-Recorded: .agents/council/<run-id>/verdict.md
-```
-
-The point is not a bigger prompt. The point is a repo that remembers what was tried, what worked, what failed, and what should constrain the next run.
-
----
-
-## SDLC Control Plane, CDLC Mechanism
-
-People know the SDLC. They do not need a new acronym before they understand the problem. Publicly, AgentOps is an **SDLC control plane for agentic software development**.
-
-Inside that control plane is the **Context Development Life Cycle (CDLC)**: the lifecycle for the context agents consume. DevOps made delivery operational for human teams. AgentOps makes context operational for agent teams.
-
-Every token should carry one of six payloads: **intent, boundary, evidence, decision, constraint, or next action**. If it carries none of those, it probably does not belong in the prompt.
-
-The narrow waist is deliberately small:
-
-| Practice | What AgentOps uses it for |
-|---|---|
-| **BDD / Gherkin** | Dense intent in observable behavior terms |
-| **DDD** | Shared names, bounded contexts, and a vocabulary humans and agents can both use |
-| **Hexagonal architecture** | Ports and adapters that keep runtime, tool, and vendor details outside the core loop |
-| **TDD** | A local executable done condition for each slice |
-
-Everything else plugs into that waist: CI/CD repeats the proof, SRE/DORA measures fitness, ADRs and provenance preserve why-memory, wikis and ratchets preserve durable learning, and Agile/XP keeps work in small vertical slices instead of speculative waterfall plans.
-
-Atomic process is the rule: one behavior, one bounded context, one first failing test, one write scope, one acceptance proof, and one learning only when it changes future behavior.
-
-That waist is executable, not advisory. `GOALS.md` declares intent as directives; `/scenario` and `ao goals render` turn each directive into behavioral acceptance examples — exportable as Gherkin `.feature` files; `ao rpi phased --domain <name>` builds inside one bounded context with a declared read scope; and `ao goals measure` scores whether the result actually satisfies the spec. Intent, behavior, build, and validation stay linked end to end — the executable-spec chain.
-
----
-
-<!-- agentops:claim:AOP-CLAIM-README-FACTORY-CONTEXT -->
-
-## What AgentOps Gives You
-
-Four layers. Each solves a different problem. All four compound.
-
-| Layer | Problem | What changes |
-|-------|---------|--------------|
-| **Bookkeeping** | Agents forget what they tried, why they changed course, and what evidence mattered | `.agents/` captures run packets, handoffs, findings, citations, decisions, verdicts, retros, and post-mortems. *The work leaves a trace.* |
-| **Context Compiler** | Every session starts from zero | `ao context assemble` builds phase-scoped packets. `ao lookup` retrieves decay-ranked knowledge on demand. Skills and execution packets make context explicit; hooks are optional adapters. *Your agent starts loaded, not cold.* |
-| **Validation Gates** | Agents ship confident garbage | `/pre-mortem`, `/vibe`, `/council` — multi-model consensus validates plans before build and code before commit. Gates block, not advise. *Three fresh judges catch what one agent can't.* |
-| **Knowledge Flywheel** | Lessons disappear between sessions | `/forge` extracts learnings from the bookkeeping trail. `ao flywheel close-loop` scores and promotes. `/evolve` fixes the worst gap autonomously. `/dream` compounds overnight. *Session 15 starts with everything session 1 learned.* |
-
-All state lives in local `.agents/` — plain text you can grep, diff, and review. No AgentOps-managed telemetry or hosted control plane. Runtime-neutral across Claude Code, Codex CLI, Cursor, and OpenCode.
-
-<!-- agentops:claim:AOP-CLAIM-README-COMPETITIVE-MEMORY -->
-
-### Why not just use Notion or Confluence?
-
-| Notion / Confluence | AgentOps `.agents/` |
-|---|---|
-| Written for humans; agents can't traverse it efficiently | LLM Wiki of Markdown — agents read it natively |
-| Lives in SaaS, not your repo | Lives in `.agents/` next to the code |
-| Not version-controlled with your code | Diffable, branchable, mergeable |
-| No decay ranking, no retrieval scoring | `ao lookup` and `ao context assemble` return bounded, cited context |
-| No validation gates, no automated capture | Sessions write to it automatically; councils validate it |
-| Doesn't compound; you maintain it manually | Daemon defrags, evolves, and compounds it overnight |
-| Read-only artifact | Writes itself: agents that use it also produce it |
-
-`.agents/` is a wiki both humans and agents read: agents traverse the markdown natively, and you can open the same directory as an Obsidian vault — `[[wikilinks]]` resolve and every entry diffs in git. Maintenance is mechanical, not voluntary: the agents that consume the wiki also produce it.
-
-More: [docs/wiki-for-agents.md](docs/wiki-for-agents.md) · [docs/trust-factory.md](docs/trust-factory.md).
-
----
-
-## Why Context Needs a Lifecycle
-
-DevOps proved that disciplined systems around indeterministic workers produce reliable output. SRE proved it again with SLOs and error budgets. Kubernetes proved it for infrastructure with control loops. Coding agents are the next indeterministic worker class. Same playbook. New substrate.
-
-Every primitive software engineering already gave us has a counterpart in the agent world:
+Coding agents are non-deterministic workers. Engineering already has a long history of getting reliable output from non-deterministic workers: disciplined process around them, with checks at the boundaries. The same primitives map across:
 
 | Software Engineering | Coding-Agent World |
 |---|---|
@@ -205,9 +140,57 @@ Every primitive software engineering already gave us has a counterpart in the ag
 | Markdown / Git / Linux (open primitives) | LLM Wiki of Markdown |
 | Open-source corpus | Your private corpus (`.agents/` in your repo) |
 
-Major engineering organizations are reorganizing around feeding their agents the right context — restructuring teams, building internal context platforms, hiring "context engineering" leads. AgentOps is that pattern for solo developers and small teams: an SDLC control plane whose core job is context compilation. Same playbook. Same asset class. Different scale.
+You can't tune the model; that's the vendor's job. You can engineer the context you feed it. AgentOps treats that engineering as a Context Development Life Cycle (CDLC), with the same discipline DevOps brought to delivery.
 
-LLMs are engines. Context is fuel. You can't tune the engine — that's the model vendor's job. But you can engineer the fuel. The CDLC is how the SDLC control plane does that work. Full treatment: [docs/cdlc.md](docs/cdlc.md).
+The narrow waist is small on purpose:
+
+| Practice | What AgentOps uses it for |
+|---|---|
+| **BDD / Gherkin** | Dense intent in observable behavior terms |
+| **DDD** | Shared names, bounded contexts, and a vocabulary humans and agents can both use |
+| **Hexagonal architecture** | Ports and adapters that keep runtime, tool, and vendor details outside the core loop |
+| **TDD** | A local executable done condition for each slice |
+
+Everything else plugs into that waist: CI/CD repeats the proof, SRE/DORA measures fitness, ADRs and provenance preserve why-memory, wikis and ratchets preserve durable learning, and Agile/XP keeps work in vertical slices. The atomic unit is one behavior, one bounded context, one failing test, one write scope, and one acceptance proof. A new learning is added only when it would change a future run.
+
+The waist is executable. `GOALS.md` declares intent as directives; `/scenario` and `ao goals render` turn each directive into Gherkin acceptance examples; `ao rpi phased --domain <name>` builds inside one bounded context with a declared read scope; `ao goals measure` scores whether the result satisfies the spec. Intent, behavior, build, and validation stay linked end-to-end.
+
+Full treatment: [docs/cdlc.md](docs/cdlc.md).
+
+---
+
+<!-- agentops:claim:AOP-CLAIM-README-FACTORY-CONTEXT -->
+
+## What AgentOps Gives You
+
+Four layers that compound:
+
+| Layer | Problem | What changes |
+|-------|---------|--------------|
+| **Bookkeeping** | Agents forget what they tried, why they changed course, and what evidence mattered | `.agents/` captures run packets, handoffs, findings, citations, decisions, verdicts, retros, and post-mortems |
+| **Context Compiler** | Every session starts cold | `ao context assemble` builds phase-scoped packets; `ao lookup` retrieves decay-ranked knowledge on demand; skills and execution packets make context explicit; hooks are optional adapters |
+| **Validation Gates** | Agents ship confident garbage | `/pre-mortem`, `/vibe`, `/council`: multi-model consensus validates plans before build and code before commit; gates block, not advise |
+| **Knowledge Flywheel** | Lessons disappear between sessions | `/forge` extracts learnings from the bookkeeping trail, `ao flywheel close-loop` scores and promotes them, `/evolve` runs a bounded reconciliation loop, `/dream` prepares overnight compounding runs |
+
+All state lives in local `.agents/`: plain text you can grep, diff, and review. No AgentOps-managed telemetry or hosted control plane. Runtime-neutral across Claude Code, Codex CLI, Cursor, and OpenCode.
+
+<!-- agentops:claim:AOP-CLAIM-README-COMPETITIVE-MEMORY -->
+
+### Why not just use Notion or Confluence?
+
+| Notion / Confluence | AgentOps `.agents/` |
+|---|---|
+| Written for humans; agents can't traverse it efficiently | LLM Wiki of Markdown; agents read it natively |
+| Lives in SaaS, not your repo | Lives in `.agents/` next to the code |
+| Not version-controlled with your code | Diffable, branchable, mergeable |
+| No decay ranking, no retrieval scoring | `ao lookup` and `ao context assemble` return bounded, cited context |
+| No validation gates, no automated capture | Sessions write to it automatically; councils validate it |
+| Doesn't compound; you maintain it manually | Daemon defrags, evolves, and compounds it overnight |
+| Read-only artifact | Writes itself: agents that use it also produce it |
+
+`.agents/` is a wiki both humans and agents read. Open it as an Obsidian vault; `[[wikilinks]]` resolve and every entry diffs in git. Maintenance happens as a side effect of use: the agents that consume the wiki also write to it.
+
+More: [docs/wiki-for-agents.md](docs/wiki-for-agents.md) · [docs/trust-factory.md](docs/trust-factory.md).
 
 ---
 
@@ -245,17 +228,7 @@ ao doctor
 ao demo
 ```
 
-The demo path shows the 3.0 product loop: visible domain/practice packet,
-bounded task context, mixed Claude/Codex council verdict, tracked follow-up
-work, and the optional scheduled compounding lane.
-For the exact first-session command path, see
-[AgentOps 3.0 First-Value Path](docs/first-value-path.md). For copy, gist,
-and launch-post language, see the
-[AgentOps 3.0 Explainer Kit](docs/agentops-3-explainer-kit.md). For launch
-video planning, see the
-[AgentOps 3.0 YouTube Starter Series](docs/agentops-3-youtube-starter-series.md).
-For the evidence loop behind PMF claims, see
-[AgentOps 3.0 PMF Evidence Loop](docs/agentops-3-pmf-evidence-loop.md).
+`ao demo` walks the product loop end-to-end: domain/practice packet, bounded task context, mixed Claude/Codex council verdict, tracked follow-up work, and the optional scheduled compounding lane. First-session walkthrough: [docs/first-value-path.md](docs/first-value-path.md).
 
 Full catalog: [docs/SKILLS.md](docs/SKILLS.md) · Unsure what to run? [Skill Router](docs/SKILL-ROUTER.md)
 
@@ -268,7 +241,7 @@ Every skill works alone. Flows compose them when you want more structure.
 | Skill | Use it when |
 |-------|-------------|
 | `/quickstart` | You want the fastest setup check and next action |
-| `/council` | You want independent judges — optionally across Claude and Codex — to evaluate one evidence packet and return a consolidated verdict |
+| `/council` | You want independent judges (optionally across Claude and Codex) to evaluate one evidence packet and return a consolidated verdict |
 | `/research` | You need codebase context and prior learnings before changing code |
 | `/pre-mortem` | You want to pressure-test a plan before implementation |
 | `/implement` | You want one scoped task built and validated |
@@ -295,7 +268,7 @@ ao search "query"                         # Search session history and local kno
 ao lookup --query "topic"                 # Retrieve curated learnings and findings
 ao context assemble                       # Build a task briefing
 ao rpi phased "fix auth startup"          # Run the phased lifecycle from the terminal
-ao evolve --max-cycles 1                  # Run one autonomous improvement cycle
+ao evolve --max-cycles 1                  # Run one bounded improvement cycle
 ao overnight setup                        # Prepare private Dream runs
 ao metrics health                         # Show flywheel health
 ```
@@ -308,14 +281,14 @@ Full reference: [CLI Commands](cli/docs/COMMANDS.md).
 
 | Surface | When to use it | What it looks like | Operator role |
 |---------|---------------|-------------------|---------------|
-| **Hand agents** (skills surface) | Active work, exploration, high-stakes decisions, ambiguous scope | `/research`, `/plan`, `/pre-mortem`, `/council`, `/rpi` invoked from chat | Driving — agents respond, you steer |
-| **Software factory** (daemon) | Vetted, well-defined work; overnight compounding; bulk processing | `ao schedule` + `ao daemon` running dream / evolve / compile / defrag / forge unattended; mix-and-match councils per phase | Operator — you set cadence and quality bars; the factory runs |
+| **Hand agents** (skills surface) | Active work, exploration, high-stakes decisions, ambiguous scope | `/research`, `/plan`, `/pre-mortem`, `/council`, `/rpi` invoked from chat | Driving; agents respond, you steer |
+| **Software factory** (daemon) | Vetted, well-defined work; overnight compounding; bulk processing | `ao schedule` + `ao daemon` running operator-approved dream / evolve / compile / defrag / forge jobs; mix-and-match councils per phase | Operator: you set cadence and quality bars; the factory executes the queue |
 
-**Hand agents** — when you're driving. Skills (`/rpi`, `/council`, `/pre-mortem`, `/vibe`) work in chat. Different rigor levels available — light skills for exploratory work, full RPI loop for everything that should be tracked, council validation before shipping.
+**Hand agents** are for when you're driving. Skills like `/rpi`, `/council`, `/pre-mortem`, and `/vibe` run from chat with rigor levels to match the work: light skills for exploration, the full RPI loop for anything that should be tracked, council validation before you ship.
 
 <!-- agentops:claim:AOP-CLAIM-README-AUTONOMOUS-FLYWHEEL -->
 
-**Software factory** — when work is vetted and ready. The `ao daemon` runs scheduled jobs against your local subscription on your hardware. Mix and match models per phase: Claude for discovery, Codex for implementation, a fresh Claude for validation, an open-weights local model for overnight defrag. Run Dream overnight, then Evolve in the morning against a fresher corpus.
+**Software factory** is for when work is vetted and queueable. `ao daemon` runs scheduled jobs against your local subscription on your hardware, with a different model per phase if you want it: Claude for discovery, Codex for implementation, a fresh Claude for validation, an open-weights local model for overnight defrag. The default worker policy uses real CLI fallback execution; the synthetic fake executor is explicit test/demo mode. Queue Dream overnight, then run Evolve against a fresher corpus.
 
 → [scheduling reference](docs/scheduling.md) · [example schedules](examples/schedules/).
 
@@ -325,6 +298,7 @@ Full reference: [CLI Commands](cli/docs/COMMANDS.md).
 
 | Topic | Where |
 |-------|-------|
+| **What 3.0 is (north star)** | [docs/3.0.md](docs/3.0.md) |
 | Published site | [boshu2.github.io/agentops](https://boshu2.github.io/agentops/) |
 | Start navigating | [Docs index](docs/documentation-index.md) |
 | New contributor orientation | [Newcomer guide](docs/newcomer-guide.md) |
@@ -334,17 +308,23 @@ Full reference: [CLI Commands](cli/docs/COMMANDS.md).
 | Architecture | [Architecture](docs/ARCHITECTURE.md) |
 | FAQ | [FAQ](docs/FAQ.md) |
 
-AgentOps is built on the 12-factor doctrine — see [12factoragentops.com](https://12factoragentops.com).
+AgentOps is built on the 12-factor doctrine; see [12factoragentops.com](https://12factoragentops.com).
+
+---
+
+## Limitations
+
+- **AgentOps doesn't generate code.** It sits on top of Claude Code, Codex, Cursor, or OpenCode and adds bookkeeping, gates, and a corpus; the harness still does the writing.
+- **No hosted control plane, no telemetry.** Every artifact lives in your repo. There's no shared dashboard across team members unless you commit `.agents/`; most operators do, but it's a choice.
+- **Multi-model councils and overnight Dream runs cost tokens or local compute.** Running six judges across Claude and Codex on every PR isn't free; the daemon makes the cost predictable, not zero.
+- **The `.agents/` corpus needs hygiene.** It grows over time. `ao defrag`, `ao maturity`, and `/dream` keep it healthy, but a neglected corpus rots like any other markdown vault.
+- **There are a lot of skills.** Around eighty as of 2026-05-20. `/quickstart` and the [Skill Router](docs/SKILL-ROUTER.md) exist because nobody learns them all up front.
 
 ---
 
 ## What if the labs ship this natively?
 
-They will. Anthropic's Managed Agents is the first move; others will follow. That's fine — the value isn't in this tool. It's in the corpus you build with it.
-
-AgentOps is bridge infrastructure. Your `.agents/` directory is plain markdown in your repo. If a frontier vendor ships native equivalents in 12 months, your corpus carries forward. If we get acquired or change direction, your corpus is yours. If you outgrow the tool entirely, fork it, customize it, replace it — the corpus is what matters.
-
-Open source forever. Built so you own the asset, not the tool.
+They will. Anthropic's Managed Agents is the first move and others will follow. The durable value is the `.agents/` corpus you build, not the tool that builds it. That corpus is plain markdown in your repo: it carries forward to whatever ships next, survives if AgentOps changes direction, and is forkable if you outgrow it. Apache-2.0, no telemetry, no hosted control plane.
 
 ---
 
