@@ -725,6 +725,21 @@
       "icon": "./plugins/villagesql/villagesql-skills/assets/icon.svg"
     },
     {
+      "name": "workflow-kit",
+      "displayName": "Workflow Kit",
+      "source": {
+        "source": "local",
+        "path": "./plugins/Le-Xuan-Thang/workflow-kit"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Development & Workflow",
+      "description": "Full product lifecycle plugin for Claude Code, Codex CLI, and OpenCode: define Vision/Mission/Core → generate workplan → execute with mandatory cross-provider reviewer agents → synthesize deliverables → maintain, with parallel task execution, crash recovery, and AgentOps metrics.",
+      "icon": "./plugins/Le-Xuan-Thang/workflow-kit/assets/icon.svg"
+    },
+    {
       "name": "writers-loop",
       "displayName": "Writer's Loop",
       "source": {
